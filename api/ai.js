@@ -81,6 +81,13 @@ async function callGemini(messages, tier, json) {
 }
 
 export default async function handler(req, res) {
+  // 画面側が「AIが使えるか」を確かめるための問い合わせ(キーそのものは返さない)
+  if (req.method === "GET") {
+    return res.status(200).json({
+      ai: !!(process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY),
+      code: !!process.env.ACCESS_CODE,
+    });
+  }
   if (req.method !== "POST") return bad(res, 405, "POSTのみ受け付けます");
 
   const code = process.env.ACCESS_CODE;

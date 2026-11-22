@@ -39,6 +39,7 @@
   --good:#5fbf86;--warn:#e0a548;--bad:#e27272;color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7}
 a{color:var(--accent)}
 button,input,select,textarea{font:inherit;color:inherit}
@@ -869,8 +870,21 @@ tbl("#tTerms",["用語","英語","意味"],TERMS);
 renderAll();fromHash();initVoice();
 setStatus(local?"この端末に保存されたデータを表示中":"この端末に保存します");
 
+const AI_BTNS=["#rRun","#sGen","#sReview","#sQA","#uStart","#gStart","#cReview","#qGen"];
+function noAI(){
+  AI_BTNS.forEach(s=>{const b=$(s);if(b){b.disabled=true;b.title="AI機能は準備中です"}});
+  $("#codeRow").hidden=true;
+  ["#v-research .card","#v-unmod .card","#v-nego .card","#v-speech .card:nth-of-type(2)","#v-reso .card:nth-of-type(2)"].forEach(sel=>{
+    const c=$(sel);if(!c)return;const p=document.createElement("p");p.className="banner";
+    p.textContent="AIを使う機能は準備中です。タイマー・原稿の時間計算・決議案の組み立て・クイズ・用語集はそのまま使えます。";
+    c.insertBefore(p,c.children[1]||null);
+  });
+  // 開始ボタンが後から有効にならないよう固定
+  $("#uStart").onclick=$("#gStart").onclick=null;
+}
 if(STANDALONE){
   $("#codeRow").hidden=false;$("#pCode").value=getCode();
+  fetch("/api/ai").then(r=>r.ok?r.json():{ai:false}).catch(()=>({ai:false})).then(d=>{if(!d||!d.ai)noAI();else if(!d.code)$("#codeRow").hidden=true;});
   $("#pCode").oninput=()=>{try{localStorage.setItem("mun-access-code",$("#pCode").value.trim())}catch(e){}};
   setStatus("入力した内容はこの端末のブラウザに保存されます");
 }else (async()=>{
