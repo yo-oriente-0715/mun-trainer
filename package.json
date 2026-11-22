@@ -1,0 +1,6 @@
+{
+  "name": "mun-trainer",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=18" }
+}

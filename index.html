@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>模擬国連トレーニング</title>
+<script>window.MUN_STANDALONE=true</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: 議場のプラカード。上に担当国の札、下にタブで各練習モジュールを切り替える一画面アプリ */
+:root{
+  --ink:#14233a;        /* 文字・濃紺 */
+  --paper:#f3f4f1;      /* 背景 */
+  --card:#ffffff;
+  --line:#d9dcd6;
+  --muted:#5d6878;
+  --accent:#1f5fa8;     /* 国連ブルー寄り */
+  --accent-ink:#ffffff;
+  --gold:#b8862b;       /* 札の縁 */
+  --good:#2d7a4f; --warn:#b5761a; --bad:#b23b3b;
+  --soft:#e8edf4;
+  --display:"Shippori Mincho B1","Hiragino Mincho ProN",serif;
+  --body:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ink:#e6eaf0;--paper:#0f1520;--card:#172030;--line:#2a3547;--muted:#9aa6b8;
+    --accent:#6ea6e8;--accent-ink:#0b1320;--gold:#d6a94e;--soft:#1e2a3d;
+    --good:#5fbf86;--warn:#e0a548;--bad:#e27272;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e6eaf0;--paper:#0f1520;--card:#172030;--line:#2a3547;--muted:#9aa6b8;
+  --accent:#6ea6e8;--accent-ink:#0b1320;--gold:#d6a94e;--soft:#1e2a3d;
+  --good:#5fbf86;--warn:#e0a548;--bad:#e27272;color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.7}
+a{color:var(--accent)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:920px;margin:0 auto;padding:16px 16px 96px}
+header.placard{display:grid;gap:10px;padding:16px 18px;background:var(--card);border:1px solid var(--line);border-top:4px solid var(--gold);border-radius:10px}
+.placard .row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.placard h1{font-family:var(--display);font-size:22px;margin:0;letter-spacing:.04em;text-wrap:balance}
+.placard .sub{color:var(--muted);font-size:13px;margin:0}
+.field{display:grid;gap:4px;flex:1 1 180px;min-width:0}
+.field label{font-size:12px;color:var(--muted);font-weight:500}
+input[type=text],select,textarea{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+textarea{resize:vertical;min-height:90px;line-height:1.65}
+nav.tabs{position:sticky;top:0;z-index:5;display:flex;gap:4px;overflow-x:auto;padding:10px 0;background:var(--paper);scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{flex:0 0 auto;border:1px solid var(--line);background:var(--card);padding:7px 14px;border-radius:999px;cursor:pointer;font-weight:500;font-size:14px;white-space:nowrap}
+nav.tabs button[aria-selected="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+section.view{display:none;gap:14px}
+section.view.on{display:grid}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;min-width:0}
+.card h2{font-family:var(--display);font-size:18px;margin:0;text-wrap:balance}
+.card h3{font-size:15px;margin:0}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--line);background:var(--card);padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.small{padding:4px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--soft);padding:4px 10px;border-radius:999px;font-size:13px;cursor:pointer}
+.chip.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.out{background:var(--soft);border-radius:8px;padding:12px 14px;min-height:48px;overflow-wrap:anywhere}
+.out h4{margin:10px 0 4px;font-size:15px}
+.out ul,.out ol{margin:4px 0;padding-left:1.3em}
+.out p{margin:4px 0}
+.out:empty::before{content:attr(data-empty);color:var(--muted);font-size:13px}
+.status{font-size:12px;color:var(--muted)}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:700;background:var(--soft)}
+.pill.good{color:var(--good)}.pill.warn{color:var(--warn)}.pill.bad{color:var(--bad)}
+/* home */
+.mods{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.mod{text-align:left;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:14px;cursor:pointer;display:grid;gap:4px}
+.mod:hover{border-color:var(--accent)}
+.mod b{font-size:15px}
+.mod span{font-size:13px;color:var(--muted)}
+.mod .num{font-family:var(--mono);font-size:12px;color:var(--gold)}
+/* timer */
+.clock{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:64px;font-weight:700;text-align:center;line-height:1.1;padding:8px 0}
+.clock.warn{color:var(--warn)}.clock.over{color:var(--bad)}
+.bar{height:6px;background:var(--soft);border-radius:999px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .2s linear}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+.meta{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--muted)}
+.meta b{color:var(--ink);font-variant-numeric:tabular-nums}
+/* chat */
+.chat{display:grid;gap:8px;max-height:420px;overflow-y:auto;padding:4px}
+.msg{padding:9px 12px;border-radius:10px;max-width:88%;overflow-wrap:anywhere;white-space:pre-wrap}
+.msg.me{justify-self:end;background:var(--accent);color:var(--accent-ink)}
+.msg.ai{justify-self:start;background:var(--soft)}
+.msg .who{display:block;font-size:11px;opacity:.75;font-weight:700}
+.msg.sys{justify-self:center;background:transparent;border:1px dashed var(--line);color:var(--muted);font-size:13px;max-width:100%}
+.ally{color:var(--good);font-weight:700}
+.btn.mic.rec{background:var(--bad);border-color:var(--bad);color:#fff}
+@media (prefers-reduced-motion:no-preference){.btn.mic.rec{animation:pulse 1.2s ease-in-out infinite}}
+@keyframes pulse{50%{opacity:.7}}
+.msg.sys:has(.out){justify-self:stretch;border:none;padding:0;color:var(--ink);font-size:15px}
+.compose{display:flex;gap:8px}
+.compose textarea{min-height:44px;flex:1}
+/* clauses */
+.clauses{display:grid;gap:6px}
+.clause{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:start;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+.clause .k{font-family:var(--mono);font-size:12px;color:var(--gold);padding-top:3px}
+.clause .t{overflow-wrap:anywhere}
+.clause .t em{font-style:italic}
+.clause .t u{text-decoration:underline}
+.doc{font-family:"Times New Roman",var(--display),serif;background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}
+/* quiz */
+.q{font-weight:700;font-size:16px}
+.opts{display:grid;gap:6px}
+.opt{text-align:left;border:1px solid var(--line);background:var(--paper);padding:10px 12px;border-radius:8px;cursor:pointer}
+.opt.right{border-color:var(--good);background:color-mix(in srgb,var(--good) 14%,var(--card))}
+.opt.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,var(--card))}
+.flash{min-height:150px;display:grid;place-items:center;text-align:center;border:1px dashed var(--gold);border-radius:10px;padding:18px;cursor:pointer;background:var(--paper)}
+.flash b{font-family:var(--display);font-size:20px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:500}
+.tablewrap{overflow-x:auto}
+.notes{display:grid;gap:8px}
+.note{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--paper);display:grid;gap:6px}
+.note .nh{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.note .nb{font-size:14px;max-height:4.8em;overflow:hidden}
+.note.open .nb{max-height:none}
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+.links a{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;background:var(--paper)}
+.links a b{display:block;color:var(--ink);font-size:14px}
+.links a span{font-size:12px;color:var(--muted)}
+.banner{font-size:13px;padding:8px 12px;border-radius:8px;background:var(--soft);color:var(--muted)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check input{margin-top:5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="placard">
+    <div>
+      <h1>模擬国連トレーニング</h1>
+      <p class="sub">担当国と議題を入れると、全部のモジュールがその設定で動きます。</p>
+    </div>
+    <div class="row">
+      <div class="field"><label for="pCountry">担当国</label><input type="text" id="pCountry" placeholder="例: マレーシア"></div>
+      <div class="field"><label for="pTopic">議題</label><input type="text" id="pTopic" placeholder="例: AI時代の尊厳ある労働"></div>
+      <div class="field" style="flex:0 1 160px"><label for="pBody">会議体</label>
+        <select id="pBody"><option>国連総会</option><option>総会第一委員会</option><option>総会第三委員会</option><option>安全保障理事会</option><option>経済社会理事会</option><option>人権理事会</option><option>その他</option></select></div>
+      <div class="field" style="flex:0 1 120px"><label for="pLang">言語</label>
+        <select id="pLang"><option value="ja">日本語</option><option value="en">English</option></select></div>
+    </div>
+    <div class="field" id="codeRow" hidden style="max-width:260px"><label for="pCode">合言葉(サイトの管理者から聞いてください)</label><input type="text" id="pCode" autocomplete="off"></div>
+    <p class="status" id="saveStatus">保存先を確認中…</p>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs">
+    <button role="tab" data-v="home" aria-selected="true">ホーム</button>
+    <button role="tab" data-v="research">リサーチ</button>
+    <button role="tab" data-v="speech">スピーチ</button>
+    <button role="tab" data-v="unmod">アンモデ</button>
+    <button role="tab" data-v="nego">1対1交渉</button>
+    <button role="tab" data-v="reso">決議案</button>
+    <button role="tab" data-v="rules">手続きクイズ</button>
+    <button role="tab" data-v="glossary">用語・フレーズ</button>
+  </nav>
+
+  <!-- HOME -->
+  <section class="view on" id="v-home">
+    <div class="card">
+      <h2>今日の練習メニュー</h2>
+      <div class="mods">
+        <button class="mod" data-go="research"><span class="num">01</span><b>リサーチ</b><span>担当国の立場・対立国・調べるべき一次資料をAIが整理。メモに保存</span></button>
+        <button class="mod" data-go="speech"><span class="num">02</span><b>スピーチ</b><span>タイマー、原稿の文字数→時間換算、AI講評、質疑応答の模擬</span></button>
+        <button class="mod" data-go="unmod"><span class="num">03</span><b>アンモデ連続練習</b><span>複数の国のAI大使が入れ替わりで話しかけてくる。時間切れまで交渉し続ける</span></button>
+        <button class="mod" data-go="nego"><span class="num">04</span><b>1対1交渉</b><span>1か国の大使とじっくり交渉。スピーチの質疑応答練習もここ</span></button>
+        <button class="mod" data-go="reso"><span class="num">04</span><b>決議案</b><span>前文・主文を組み立てて体裁を整え、AIがチェック</span></button>
+        <button class="mod" data-go="rules"><span class="num">05</span><b>手続きクイズ</b><span>動議・ポイント・投票のルールを4択とカードで確認</span></button>
+        <button class="mod" data-go="glossary"><span class="num">06</span><b>用語・フレーズ</b><span>前文/主文の動詞、会議用語の日英対照</span></button>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <h3>準備チェックリスト</h3>
+        <div id="checklist" class="notes"></div>
+      </div>
+      <div class="card">
+        <h3>記録</h3>
+        <div class="meta" id="stats"></div>
+        <p class="hint">メモ・原稿・決議案・クイズの成績はこのページに保存され、次に開いたときも残ります。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- RESEARCH -->
+  <section class="view" id="v-research">
+    <div class="card">
+      <h2>AIリサーチアシスタント</h2>
+      <p class="hint">知りたい観点を選んで実行。AIの知識には期限があり誤りもあるので、数字・発言・投票記録は下の一次資料で必ず裏取りしてください。</p>
+      <div class="chips" id="rModes"></div>
+      <div class="field"><label for="rExtra">追加の質問・条件(任意)</label><textarea id="rExtra" placeholder="例: ASEANとしての立場と、マレーシア単独の立場の違いを中心に"></textarea></div>
+      <div class="btns"><button class="btn primary" id="rRun">リサーチする</button><button class="btn" id="rSave" disabled>メモに保存</button><button class="btn" id="rStop" hidden>止める</button></div>
+      <div class="out" id="rOut" data-empty="ここに結果が出ます"></div>
+      <p class="status" id="rStatus"></p>
+    </div>
+    <div class="card">
+      <h2>リサーチメモ</h2>
+      <div class="field"><label for="nTitle">タイトル</label><input type="text" id="nTitle" placeholder="例: 2023年総会でのマレーシア代表発言"></div>
+      <div class="field"><label for="nBody">内容・出典</label><textarea id="nBody" placeholder="内容と出典(文書番号・URL)をセットで書くと後でPPPに使いやすいです"></textarea></div>
+      <div class="btns"><button class="btn primary" id="nAdd">メモを追加</button></div>
+      <div class="notes" id="notes"></div>
+    </div>
+    <div class="card">
+      <h2>一次資料へのリンク</h2>
+      <div class="links">
+        <a href="https://digitallibrary.un.org/" target="_blank" rel="noopener"><b>UN Digital Library</b><span>決議・議事録・投票記録(Voting data)</span></a>
+        <a href="https://press.un.org/en" target="_blank" rel="noopener"><b>UN Meetings Coverage</b><span>会合ごとの各国発言の要約</span></a>
+        <a href="https://documents.un.org/" target="_blank" rel="noopener"><b>Official Document System</b><span>A/RES/… などの文書番号で検索</span></a>
+        <a href="https://treaties.un.org/" target="_blank" rel="noopener"><b>UN Treaty Collection</b><span>条約の署名・批准状況</span></a>
+        <a href="https://gadebate.un.org/" target="_blank" rel="noopener"><b>General Debate</b><span>各国首脳の一般討論演説</span></a>
+        <a href="https://www.mofa.go.jp/mofaj/area/index.html" target="_blank" rel="noopener"><b>外務省 国・地域</b><span>基礎データと日本との関係</span></a>
+        <a href="https://www.un.org/en/library/page/voting-data" target="_blank" rel="noopener"><b>投票データの調べ方</b><span>国連図書館のガイド</span></a>
+        <a href="https://www.cia.gov/the-world-factbook/" target="_blank" rel="noopener"><b>World Factbook</b><span>人口・経済・政体の基本情報</span></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPEECH -->
+  <section class="view" id="v-speech">
+    <div class="card">
+      <h2>スピーチタイマー</h2>
+      <div class="chips" id="tPresets"></div>
+      <div class="clock" id="clock" aria-live="polite">1:30</div>
+      <div class="bar"><i id="clockBar"></i></div>
+      <div class="btns" style="justify-content:center"><button class="btn primary" id="tStart">スタート</button><button class="btn" id="tReset">リセット</button></div>
+      <p class="hint" style="text-align:center">残り30秒で色が変わり、時間切れ後は超過時間を表示します。</p>
+    </div>
+    <div class="card">
+      <h2>原稿</h2>
+      <div class="chips" id="sTypes"></div>
+      <textarea id="sDraft" style="min-height:200px" placeholder="スピーチ原稿を書くか、下のボタンでAIにたたき台を作らせてください"></textarea>
+      <div class="meta" id="sMeta"></div>
+      <div class="btns">
+        <button class="btn" id="sGen">AIでたたき台を作る</button>
+        <button class="btn primary" id="sReview">AIに講評してもらう</button>
+        <button class="btn" id="sQA">質疑応答を練習する</button>
+        <button class="btn" id="sCopy">コピー</button>
+      </div>
+      <div class="out" id="sOut" data-empty="講評・たたき台がここに出ます"></div>
+      <p class="status" id="sStatus"></p>
+    </div>
+  </section>
+
+  <!-- UNMOD -->
+  <section class="view" id="v-unmod">
+    <div class="card">
+      <h2>アンモデ連続練習</h2>
+      <p class="hint">議場にいる国を入れて開始。AIの大使たちが入れ替わりで話しかけてきます。返事をするか、「別の国が来る」で次の国を呼んでください。時間切れで自動的に講評が出ます。</p>
+      <div class="field"><label for="uCountries">議場にいる国(読点かカンマ区切り)</label><input type="text" id="uCountries" value="アメリカ、中国、インド、ブラジル、フランス、南アフリカ、インドネシア、ナイジェリア"></div>
+      <div class="row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
+        <div class="field" style="flex:0 1 150px"><label for="uMin">アンモデの時間</label><select id="uMin"><option value="5">5分</option><option value="10" selected>10分</option><option value="15">15分</option><option value="20">20分</option><option value="0">時間無制限</option></select></div>
+        <div class="field"><label for="uGoal">自分の目標(任意)</label><input type="text" id="uGoal" placeholder="例: 途上国グループを作り、職業訓練基金の条項に3か国以上賛成させる"></div>
+        <div class="field" style="flex:0 1 140px"><label for="uLevel">手ごわさ</label><select id="uLevel"><option value="1">やさしい</option><option value="2" selected>ふつう</option><option value="3">手ごわい</option></select></div>
+      </div>
+      <label class="check" id="uVoiceRow"><input type="checkbox" id="uVoice"><span>音声モード(相手の発言を読み上げ、マイクで返事。話し終わると自動で送信)<br><span class="status" id="uVoiceNote"></span></span></label>
+      <div class="btns"><button class="btn primary" id="uStart">アンモデ開始</button><button class="btn" id="uEnd" disabled>終了して講評</button></div>
+      <div class="meta"><span>残り <b id="uClock">--:--</b></span><span>話した国 <b id="uMet">0</b></span><span>やりとり <b id="uTurns">0</b></span><span id="uAllies"></span></div>
+      <div class="chat" id="uChat" style="max-height:480px"></div>
+      <div class="row" style="display:flex;flex-wrap:wrap;gap:8px;align-items:end">
+        <div class="field" style="flex:0 1 170px"><label for="uTo">話しかける相手</label><select id="uTo"><option value="">(今の相手)</option></select></div>
+        <div class="btns"><button class="btn" id="uNext" disabled>別の国が来る</button></div>
+      </div>
+      <div class="compose"><textarea id="uInput" placeholder="返事を入力(Ctrl+Enterで送信)"></textarea><div style="display:grid;gap:6px"><button class="btn mic" id="uMic" hidden disabled>マイクで話す</button><button class="btn primary" id="uSend" disabled>送信</button></div></div>
+      <p class="status" id="uStatus"></p>
+    </div>
+  </section>
+
+  <!-- NEGOTIATION -->
+  <section class="view" id="v-nego">
+    <div class="card">
+      <h2>交渉ロールプレイ</h2>
+      <p class="hint">相手国を入れて開始。AIはその国の大使として、国益に沿って譲ったり突っぱねたりします。終わったら講評を頼めます。</p>
+      <div class="row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
+        <div class="field"><label for="gCountry">相手国</label><input type="text" id="gCountry" placeholder="例: アメリカ"></div>
+        <div class="field"><label for="gScene">場面</label>
+          <select id="gScene">
+            <option value="unmod">非着席討議でグループ作りを持ちかける</option>
+            <option value="merge">2つの決議案の統合交渉</option>
+            <option value="amend">相手国の決議案の文言修正を求める</option>
+            <option value="hostile">立場が対立する国を説得する</option>
+          </select></div>
+        <div class="field" style="flex:0 1 140px"><label for="gLevel">相手の手ごわさ</label>
+          <select id="gLevel"><option value="1">やさしい</option><option value="2" selected>ふつう</option><option value="3">手ごわい</option></select></div>
+      </div>
+      <div class="btns"><button class="btn primary" id="gStart">交渉を始める</button><button class="btn" id="gDebrief" disabled>講評をもらう</button></div>
+      <div class="chat" id="chat"></div>
+      <div class="compose"><textarea id="gInput" placeholder="発言を入力(Ctrl+Enterで送信)"></textarea><button class="btn primary" id="gSend" disabled>送信</button></div>
+      <p class="status" id="gStatus"></p>
+    </div>
+  </section>
+
+  <!-- RESOLUTION -->
+  <section class="view" id="v-reso">
+    <div class="card">
+      <h2>決議案ビルダー</h2>
+      <p class="hint">書き出しの語句を選び、続きの文を書いて追加。前文はカンマ、主文はセミコロンで終わり、最後の主文だけピリオドになるよう自動で整えます。</p>
+      <div class="row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
+        <div class="field" style="flex:0 1 130px"><label for="cKind">種類</label><select id="cKind"><option value="pre">前文</option><option value="op">主文</option></select></div>
+        <div class="field"><label for="cPhrase">書き出し</label><select id="cPhrase"></select></div>
+      </div>
+      <div class="field"><label for="cText">続き</label><textarea id="cText" style="min-height:60px" placeholder="例: the need to protect workers whose jobs are affected by artificial intelligence"></textarea></div>
+      <div class="btns"><button class="btn primary" id="cAdd">条項を追加</button></div>
+      <div class="clauses" id="clauses"></div>
+    </div>
+    <div class="card">
+      <h2>プレビュー</h2>
+      <div class="doc" id="resoDoc"></div>
+      <div class="btns"><button class="btn" id="cCopy">本文をコピー</button><button class="btn primary" id="cReview">AIにチェックしてもらう</button><button class="btn" id="cClear">全部消す</button></div>
+      <div class="out" id="cOut" data-empty="体裁・権限・各国が乗れるかの指摘がここに出ます"></div>
+      <p class="status" id="cStatus"></p>
+    </div>
+  </section>
+
+  <!-- RULES QUIZ -->
+  <section class="view" id="v-rules">
+    <div class="card">
+      <h2>手続きクイズ</h2>
+      <p class="hint">日本の大会でよく使う議事進行を基準にしています。細かいルールは大会ごとの議事細則が優先です。</p>
+      <div class="chips" id="qMode"></div>
+      <div id="quizBox" class="card" style="border-style:dashed"></div>
+    </div>
+    <div class="card">
+      <h2>AIに追加問題を作ってもらう</h2>
+      <div class="field"><label for="qTopic">テーマ</label><input type="text" id="qTopic" placeholder="例: 修正案の扱い / 安保理の投票 / 決議案の提出要件"></div>
+      <div class="btns"><button class="btn primary" id="qGen">5問つくる</button></div>
+      <p class="status" id="qStatus"></p>
+    </div>
+  </section>
+
+  <!-- GLOSSARY -->
+  <section class="view" id="v-glossary">
+    <div class="card">
+      <h2>前文の書き出し</h2>
+      <div class="tablewrap"><table id="tPre"></table></div>
+    </div>
+    <div class="card">
+      <h2>主文の書き出し</h2>
+      <p class="hint">強さの目安: Encourages &lt; Calls upon &lt; Urges &lt; Demands。Decides は安保理か、総会の内部事項で使います。</p>
+      <div class="tablewrap"><table id="tOp"></table></div>
+    </div>
+    <div class="card">
+      <h2>会議用語</h2>
+      <div class="tablewrap"><table id="tTerms"></table></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- data ---------- */
+const PRE=[
+["Recalling","想起し","過去の決議・条約を引く。例: Recalling its resolution 78/xxx"],
+["Reaffirming","再確認し","国連憲章や既存の原則を確認"],
+["Recognizing","認識し","事実・重要性を認める"],
+["Acknowledging","認め","努力や現状を認める"],
+["Deeply concerned","深く憂慮し","問題の深刻さ"],
+["Alarmed by","警戒し","より強い懸念"],
+["Noting with concern","懸念をもって留意し","やや控えめな懸念"],
+["Emphasizing","強調し","重要な点を押し出す"],
+["Bearing in mind","念頭に置き","考慮すべき前提"],
+["Guided by","指針とし","憲章・宣言など"],
+["Mindful of","留意し","各国の事情への配慮"],
+["Taking note of","留意し","報告書などを受けとめる"],
+["Welcoming","歓迎し","良い取り組みを評価"],
+["Expressing appreciation for","謝意を表し","他国・機関の貢献"],
+["Convinced","確信し","決議の根拠となる信念"],
+["Having considered","検討し","報告や議題を検討した上で"]];
+const OP=[
+["Encourages","奨励する","弱め。合意を取りやすい"],
+["Invites","招請する","任意の参加を促す"],
+["Recommends","勧告する","具体策の提案"],
+["Requests","要請する","事務総長・機関に作業を頼むとき"],
+["Calls upon","求める","各国に行動を求める標準的な強さ"],
+["Urges","強く求める","強め"],
+["Supports","支持する","既存の取り組みを支える"],
+["Welcomes","歓迎する",""],
+["Emphasizes","強調する",""],
+["Affirms","確認する",""],
+["Establishes","設置する","新しい枠組み・作業部会など"],
+["Decides","決定する","安保理、または総会の内部事項"],
+["Further requests","さらに要請する","前の条項に続けて"],
+["Demands","要求する","主に安保理。総会では強すぎることが多い"],
+["Condemns","非難する","主に安保理。対立を招きやすい"]];
+const TERMS=[
+["公式討議","Formal Debate","スピーカーズリストに沿って順番に演説する時間"],
+["スピーカーズリスト","Speakers' List","公式討議の発言順のリスト"],
+["着席討議","Moderated Caucus","議長が指名し、着席のまま短い発言を重ねる非公式討議"],
+["非着席討議","Unmoderated Caucus","席を立って自由に交渉する時間。グループ作りの中心"],
+["動議","Motion","議事進行に関する提案。着席討議・非着席討議・討議終了など"],
+["議事進行上の問題","Point of Order","議長や手続きの誤りの指摘"],
+["議事進行に関する質問","Point of Parliamentary Inquiry","手続きがわからないときの質問"],
+["個人的特権","Point of Personal Privilege","聞こえない、体調が悪いなど個人の不都合"],
+["答弁権","Right of Reply","自国の名誉を傷つけられたときの反論"],
+["ワーキングペーパー","Working Paper","決議案の前段階の文書"],
+["決議案","Draft Resolution (DR)","提出要件(スポンサー・シグナトリー数)を満たし提出された案"],
+["共同提案国","Sponsor","決議案の作成者。内容に責任を持つ"],
+["署名国","Signatory","議論にかけることに賛成した国。内容に賛成とは限らない"],
+["修正案","Amendment","友好的修正は全スポンサー同意、非友好的修正は投票"],
+["コンセンサス","Consensus","投票なしで反対が出ずに採択されること"],
+["棄権","Abstention","実質事項の投票で賛否を示さないこと"],
+["ポジションペーパー","Position Paper (PP/PPP)","会議前に提出する自国の立場の文書"],
+["ブロック","Bloc","地域・利害の近い国のグループ"]];
+const QUIZ=[
+{q:"非着席討議(Unmoderated Caucus)の説明として正しいのは?",o:["議長が指名した順に着席で発言する","大使が席を立って自由に交渉する","スピーカーズリスト順に演説する","投票の前に最終演説をする"],a:1,e:"席を立って自由に交渉できる時間。グループ作りや文言調整の中心になります。"},
+{q:"着席討議(Moderated Caucus)の動議に通常含める内容は?",o:["討議時間と1人あたりの発言時間(と論点)","スポンサー国の一覧","投票方法","答弁権の行使国"],a:0,e:"「論点◯◯について、全体△分・1人□秒の着席討議」のように、時間と論点を示して出します。"},
+{q:"議長の手続きの誤りを指摘したいときに使うのは?",o:["Point of Personal Privilege","Point of Parliamentary Inquiry","Point of Order","Right of Reply"],a:2,e:"Point of Order は議事進行上の誤りを指摘するもの。手続きの質問は Parliamentary Inquiry です。"},
+{q:"「マイクの音が聞こえない」ときに使うのは?",o:["Point of Order","Point of Personal Privilege","Right of Reply","動議"],a:1,e:"個人の不都合は Point of Personal Privilege。発言中でも割り込めることが多いです。"},
+{q:"決議案の前文(Preambular clause)の書き方として正しいのは?",o:["動詞の三人称単数で始め、セミコロンで終える","分詞や形容詞で始め、カンマで終える","番号を付け、ピリオドで終える","下線を引いた動詞で始める"],a:1,e:"前文は Recalling, Deeply concerned などで始めてカンマ。主文は番号付き・動詞(Calls upon など)で始めてセミコロン、最後だけピリオドです。"},
+{q:"主文で各国に行動を求める標準的な強さの表現は?",o:["Decides","Calls upon","Condemns","Recalling"],a:1,e:"Calls upon が標準。弱めなら Encourages、強めなら Urges。Decides は主に安保理か総会の内部事項です。"},
+{q:"総会決議の法的拘束力について正しいのは?",o:["すべての加盟国を法的に拘束する","原則として勧告で、法的拘束力はない","常任理事国だけを拘束する","賛成した国だけを拘束する"],a:1,e:"総会決議は原則として勧告です。ただし予算など組織の内部事項は拘束力を持ちます。"},
+{q:"安保理で実質事項の決議案が否決される条件は?",o:["非常任理事国1か国の反対","常任理事国1か国の反対票(拒否権)、または賛成9票未満","棄権が過半数","議長国の反対"],a:1,e:"採択には15か国中9か国以上の賛成が必要で、常任理事国の反対票は拒否権になります。棄権は拒否権になりません。"},
+{q:"署名国(Signatory)になることの意味は?",o:["決議案の内容に全面的に賛成する","決議案を議場で議論することに賛成する","決議案の文言に責任を持つ","投票で必ず賛成する"],a:1,e:"署名国は審議にかけることへの賛成のみ。内容に責任を持つのはスポンサー(共同提案国)です。"},
+{q:"友好的修正(Friendly Amendment)の条件は?",o:["議場の過半数の賛成","全スポンサーの同意","議長の許可だけ","安保理の承認"],a:1,e:"全スポンサーが同意すれば投票なしで反映。同意が得られない修正は非友好的修正として投票にかけます。"},
+{q:"答弁権(Right of Reply)を使える典型的な場面は?",o:["自国の名誉や主権を傷つける発言をされた","発言時間が足りなかった","決議案に反対したい","休憩したい"],a:0,e:"自国への不当な言及への反論の機会。使えるかどうかは議長の判断になることが多いです。"},
+{q:"手続事項(動議など)の投票で通常できないのは?",o:["賛成","反対","棄権","挙手"],a:2,e:"手続事項の投票では棄権できないのが一般的。棄権は実質事項(決議案)の投票で使います。"},
+{q:"ポジションペーパーに最低限入れるべきでないものは?",o:["議題に関する自国の基本的立場","具体的な政策提案","自国の過去の取り組み","他国大使への個人的な批判"],a:3,e:"PPは自国の立場・取り組み・提案を示す文書。個人攻撃は外交文書としてふさわしくありません。"},
+{q:"安保理決議の最後によく置かれる主文は?",o:["Decides to remain actively seized of the matter.","Recalls its previous resolutions,","Welcomes the report,","Invites all Member States;"],a:0,e:"「引き続き本件に積極的に関与することを決定する」。安保理特有の締めの一文です。"},
+{q:"コンセンサス採択の説明として正しいのは?",o:["全会一致の賛成投票","投票を行わず、反対が出ないことで採択","3分の2の賛成","議長の独断"],a:1,e:"投票をせず、異議が出ないことで採択する方式。全日本大会などではコンセンサスを重視することが多いです。"}];
+const RMODES=[
+["stance","基本スタンス","この議題に対する担当国の基本的立場、その根拠(国内事情・経済・外交方針)"],
+["allies","味方と対立国","協力しやすい国・ブロックと対立しやすい国、それぞれの理由と交渉の糸口"],
+["issues","論点ごとの立場","この議題で想定される主要論点を3〜5個挙げ、論点ごとの担当国の立場と譲れる線・譲れない線"],
+["history","国連での過去の動き","この議題に関連する過去の国連決議・条約・会合での担当国の投票や発言の傾向。文書番号がわかれば付ける"],
+["sources","調べるべき資料","この担当国・議題で一次資料として確認すべき文書・ウェブサイト・検索キーワードのリスト"],
+["ppp","PPの骨子","ポジションペーパーの骨子(現状認識→自国の取り組み→提案)を箇条書きで"]];
+const CHECK=["担当国の基礎情報(政体・経済・地域機構)を調べた","議題の背景と過去の国連決議を把握した","論点ごとの自国の立場を決めた","味方になりそうな国と対立国を洗い出した","ポジションペーパーを書いた","最初のスピーチ原稿を作り、時間内に読めた","決議案に入れたい主文を3つ以上用意した","手続きクイズで8割以上取れた"];
+const SPEECH_TYPES=[["opening","冒頭演説"],["mod","着席討議の発言"],["closing","最終演説"],["reply","反論・答弁"]];
+
+/* ---------- state & storage ---------- */
+const DEFAULT={profile:{country:"",topic:"",body:"国連総会",lang:"ja"},notes:[],draft:"",speechType:"opening",clauses:[],checks:[],quiz:{answered:0,correct:0},timerSec:90,extraQuiz:[]};
+let S=JSON.parse(JSON.stringify(DEFAULT));
+let docRef=null, saveTimer=null, saving=false, dirty=false;
+const LS="mun-trainer-v1";
+function lsLoad(){try{const v=localStorage.getItem(LS);return v?JSON.parse(v):null}catch(e){return null}}
+function lsSave(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+function merge(d){S=Object.assign(JSON.parse(JSON.stringify(DEFAULT)),d||{});S.profile=Object.assign({},DEFAULT.profile,S.profile||{});S.quiz=Object.assign({},DEFAULT.quiz,S.quiz||{});}
+function save(){lsSave();dirty=true;clearTimeout(saveTimer);saveTimer=setTimeout(flush,900);}
+async function flush(){
+  if(!docRef||saving||!dirty)return;
+  saving=true;dirty=false;
+  try{await docRef.set(JSON.parse(JSON.stringify(S)));setStatus("保存済み(どの端末からでも続きができます)");}
+  catch(e){setStatus("保存できませんでした。この端末のブラウザには残っています");}
+  saving=false; if(dirty)flush();
+}
+function setStatus(t){$("#saveStatus").textContent=t}
+const local=lsLoad(); if(local)merge(local);
+
+/* ---------- AI ---------- */
+let sample=null;
+const STANDALONE=!!window.MUN_STANDALONE;
+function getCode(){try{return localStorage.getItem("mun-access-code")||""}catch(e){return ""}}
+function makeRemoteSample(){
+  const call=async(input,opts={})=>{
+    const messages=typeof input==="string"?[{role:"user",content:input}]:input;
+    let r;
+    try{r=await fetch("/api/ai",{method:"POST",headers:{"content-type":"application/json","x-access-code":getCode()},body:JSON.stringify({messages,tier:opts.modelTier||"default",json:!!opts._json}),signal:opts.signal})}
+    catch(e){if(e&&e.name==="AbortError")throw e;throw {code:"network",message:"サーバーにつながりません"}}
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw {code:r.status===429?"rate_limited":r.status===401?"bad_code":"error",message:d.error||""};
+    opts.onText&&opts.onText({text:d.text,delta:d.text});
+    return {text:d.text||"",truncated:!!d.truncated};
+  };
+  call.json=async(input,opts={})=>{const r=await call(input,Object.assign({},opts,{_json:true}));const m=r.text.match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:r.text)};
+  return call;
+}
+const aiReady=(async()=>{
+  if(STANDALONE){sample=makeRemoteSample();return sample}
+  try{sample=await claude.use("sample")}catch(e){sample=null}return sample})();
+function errMsg(e){
+  if(e&&e.code==="rate_limited")return "呼び出しが多すぎます。少し待ってからもう一度押してください。";
+  if(e&&e.code==="bad_code")return "合言葉が違います。ページ上部の合言葉を確認してください。";
+  if(e&&e.code==="not_granted")return "AIの利用が許可されていません。";
+  if(e&&e.code==="network")return "サーバーにつながりません。通信を確認してください。";
+  if(e&&e.name==="AbortError")return "止めました";
+  return "AIの応答でエラーが出ました。もう一度押してください。";
+}
+function langLine(){return S.profile.lang==="en"?"Answer in English.":"日本語で答えてください。"}
+function ctx(){const p=S.profile;return `担当国: ${p.country||"(未設定)"}\n議題: ${p.topic||"(未設定)"}\n会議体: ${p.body}`}
+async function ask(input,out,status,opts={}){
+  await aiReady;
+  if(!sample){status.textContent="この表示ではAI機能が使えません。claude.ai のページから開いてください。";return null}
+  const ctrl=new AbortController(); opts.onStart&&opts.onStart(ctrl);
+  status.textContent="考えています…";
+  try{
+    const r=await sample(input,{signal:ctrl.signal,cache:false,modelTier:opts.tier||"default",onText:({text})=>{if(out)out.innerHTML=md(text);}});
+    status.textContent=r.truncated?"長すぎて途中で切れました":"";
+    if(out)out.innerHTML=md(r.text);
+    return r.text;
+  }catch(e){
+    status.textContent=errMsg(e);
+    return null;
+  }finally{opts.onEnd&&opts.onEnd()}
+}
+function md(t){
+  const lines=esc(t||"").split(/\n/);let h="",list=null;
+  const inl=s=>s.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>");
+  const close=()=>{if(list){h+=`</${list}>`;list=null}};
+  for(const raw of lines){const l=raw.trim();
+    if(!l){close();continue}
+    let m;
+    if(m=l.match(/^#{1,4}\s+(.*)/)){close();h+=`<h4>${inl(m[1])}</h4>`;}
+    else if(m=l.match(/^[-*・]\s+(.*)/)){if(list!=="ul"){close();h+="<ul>";list="ul"}h+=`<li>${inl(m[1])}</li>`;}
+    else if(m=l.match(/^\d+[.)]\s+(.*)/)){if(list!=="ol"){close();h+="<ol>";list="ol"}h+=`<li>${inl(m[1])}</li>`;}
+    else{close();h+=`<p>${inl(l)}</p>`;}
+  }
+  close();return h;
+}
+
+/* ---------- tabs ---------- */
+function show(v){$$("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v));$$("section.view").forEach(s=>s.classList.toggle("on",s.id==="v-"+v));if(location.hash!=="#"+v)history.replaceState(null,"","#"+v);}
+$$("#tabs button").forEach(b=>b.onclick=()=>show(b.dataset.v));
+$$("[data-go]").forEach(b=>b.onclick=()=>{show(b.dataset.go);window.scrollTo(0,0)});
+const views=["home","research","speech","unmod","nego","reso","rules","glossary"];
+function fromHash(){const h=location.hash.slice(1);if(views.includes(h))show(h)}
+window.addEventListener("hashchange",fromHash);
+
+/* ---------- profile ---------- */
+function bindProfile(){
+  const map={pCountry:"country",pTopic:"topic",pBody:"body",pLang:"lang"};
+  for(const id in map){const el=$("#"+id);el.value=S.profile[map[id]]||el.value;el.oninput=el.onchange=()=>{S.profile[map[id]]=el.value;save();}}
+}
+
+/* ---------- home ---------- */
+function renderHome(){
+  $("#checklist").innerHTML=CHECK.map((c,i)=>`<label class="check"><input type="checkbox" id="ck${i}" ${S.checks.includes(i)?"checked":""}><span>${esc(c)}</span></label>`).join("");
+  CHECK.forEach((c,i)=>{$("#ck"+i).onchange=e=>{S.checks=S.checks.filter(x=>x!==i);if(e.target.checked)S.checks.push(i);save();renderStats();}});
+  renderStats();
+}
+function renderStats(){
+  const q=S.quiz,rate=q.answered?Math.round(q.correct/q.answered*100):0;
+  const cls=rate>=80?"good":rate>=60?"warn":"bad";
+  $("#stats").innerHTML=`<span>チェック <b>${S.checks.length}/${CHECK.length}</b></span><span>メモ <b>${S.notes.length}</b>件</span><span>決議案の条項 <b>${S.clauses.length}</b></span><span>クイズ <b>${q.correct}/${q.answered}</b> ${q.answered?`<span class="pill ${cls}">${rate}%</span>`:""}</span>`;
+}
+
+/* ---------- research ---------- */
+let rMode="stance",rLast="",rCtrl=null;
+function renderRModes(){$("#rModes").innerHTML=RMODES.map(m=>`<button class="chip ${m[0]===rMode?"on":""}" data-m="${m[0]}">${m[1]}</button>`).join("");$$("#rModes .chip").forEach(c=>c.onclick=()=>{rMode=c.dataset.m;renderRModes()})}
+$("#rRun").onclick=async()=>{
+  if(!S.profile.country||!S.profile.topic){$("#rStatus").textContent="先に上の担当国と議題を入れてください。";return}
+  const m=RMODES.find(x=>x[0]===rMode);
+  const prompt=`あなたは模擬国連(高校生大会)の大使を指導するリサーチ担当です。\n${ctx()}\n\n依頼: ${m[2]}を整理してください。\n${$("#rExtra").value?"追加条件: "+$("#rExtra").value+"\n":""}\n形式: 見出し(##)と箇条書き中心で、高校生が会議でそのまま使える具体性で。不確かな点は「要確認」と明記し、事実をでっち上げないこと。最後に「## 裏取りすること」として確認すべき点を3つ挙げる。${langLine()}`;
+  $("#rSave").disabled=true;$("#rRun").disabled=true;$("#rStop").hidden=false;
+  const t=await ask(prompt,$("#rOut"),$("#rStatus"),{tier:"complex",onStart:c=>rCtrl=c,onEnd:()=>{$("#rRun").disabled=false;$("#rStop").hidden=true}});
+  if(t){rLast=t;$("#rSave").disabled=false}
+};
+$("#rStop").onclick=()=>rCtrl&&rCtrl.abort();
+$("#rSave").onclick=()=>{const m=RMODES.find(x=>x[0]===rMode);S.notes.unshift({id:Date.now(),title:`[AI] ${S.profile.country}: ${m[1]}`,body:rLast,ts:Date.now(),ai:true});save();renderNotes();$("#rSave").disabled=true;$("#rStatus").textContent="メモに保存しました"};
+$("#nAdd").onclick=()=>{const t=$("#nTitle").value.trim(),b=$("#nBody").value.trim();if(!t&&!b)return;S.notes.unshift({id:Date.now(),title:t||"無題",body:b,ts:Date.now()});$("#nTitle").value="";$("#nBody").value="";save();renderNotes()};
+function renderNotes(){
+  const el=$("#notes");
+  if(!S.notes.length){el.innerHTML=`<p class="hint">まだメモはありません。AIの結果を保存するか、自分で調べたことを追加してください。</p>`;return}
+  el.innerHTML=S.notes.map(n=>`<div class="note" data-id="${n.id}"><div class="nh"><b>${esc(n.title)}</b><span class="btns"><span class="status">${new Date(n.ts).toLocaleDateString("ja-JP")}</span><button class="btn small" data-a="open">開く</button><button class="btn small" data-a="del">削除</button></span></div><div class="nb">${n.ai?md(n.body):esc(n.body).replace(/\n/g,"<br>")}</div></div>`).join("");
+  $$("#notes .note").forEach(d=>{const id=+d.dataset.id;
+    d.querySelector('[data-a=open]').onclick=e=>{d.classList.toggle("open");e.target.textContent=d.classList.contains("open")?"閉じる":"開く"};
+    d.querySelector('[data-a=del]').onclick=()=>{S.notes=S.notes.filter(n=>n.id!==id);save();renderNotes();renderStats()};
+  });
+  renderStats();
+}
+
+/* ---------- timer ---------- */
+let tTotal=90,tLeft=90,tRun=null,tLast=0;
+const PRESETS=[30,45,60,90,120,180];
+function fmt(s){const neg=s<0;s=Math.abs(Math.round(s));return (neg?"+":"")+Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
+function renderPresets(){$("#tPresets").innerHTML=PRESETS.map(p=>`<button class="chip ${p===tTotal?"on":""}" data-p="${p}">${p<60?p+"秒":(p/60)+"分"}</button>`).join("");$$("#tPresets .chip").forEach(c=>c.onclick=()=>{tTotal=+c.dataset.p;S.timerSec=tTotal;save();resetT();renderPresets();renderSMeta()})}
+function drawT(){const c=$("#clock");c.textContent=fmt(tLeft);c.classList.toggle("warn",tLeft<=30&&tLeft>0);c.classList.toggle("over",tLeft<=0);$("#clockBar").style.width=Math.min(100,(1-tLeft/tTotal)*100)+"%"}
+function tick(){const n=performance.now();tLeft-=(n-tLast)/1000;tLast=n;drawT()}
+$("#tStart").onclick=()=>{if(tRun){clearInterval(tRun);tRun=null;$("#tStart").textContent="再開"}else{tLast=performance.now();tRun=setInterval(tick,200);$("#tStart").textContent="一時停止"}};
+function resetT(){clearInterval(tRun);tRun=null;tLeft=tTotal;$("#tStart").textContent="スタート";drawT()}
+$("#tReset").onclick=resetT;
+
+/* ---------- speech ---------- */
+let sCtrl=null;
+function renderSTypes(){$("#sTypes").innerHTML=SPEECH_TYPES.map(t=>`<button class="chip ${t[0]===S.speechType?"on":""}" data-t="${t[0]}">${t[1]}</button>`).join("");$$("#sTypes .chip").forEach(c=>c.onclick=()=>{S.speechType=c.dataset.t;save();renderSTypes()})}
+function renderSMeta(){
+  const t=$("#sDraft").value;const en=/[a-zA-Z]{3,}/.test(t)&&!/[぀-ヿ一-龯]/.test(t);
+  let sec,unit,count;
+  if(en){count=(t.match(/\b[\w'-]+\b/g)||[]).length;sec=count/130*60;unit="語"}
+  else{count=t.replace(/\s/g,"").length;sec=count/300*60;unit="字"}
+  const diff=sec-tTotal;const cls=Math.abs(diff)<=10?"good":diff>10?"bad":"warn";
+  $("#sMeta").innerHTML=`<span><b>${count}</b>${unit}</span><span>読むとおよそ <b>${fmt(sec)}</b></span><span>タイマー ${fmt(tTotal)} に対して <span class="pill ${cls}">${diff>10?"長すぎ":diff<-10?"短め":"ちょうど"}</span></span><span>目安: ${en?"英語 約130語/分":"日本語 約300字/分"}</span>`;
+}
+$("#sDraft").oninput=()=>{S.draft=$("#sDraft").value;save();renderSMeta()};
+const sType=()=>SPEECH_TYPES.find(x=>x[0]===S.speechType)[1];
+function sBusy(b){["#sGen","#sReview","#sQA"].forEach(i=>$(i).disabled=b)}
+$("#sGen").onclick=()=>{
+  const notes=S.notes.slice(0,4).map(n=>`- ${n.title}: ${n.body.slice(0,300)}`).join("\n");
+  ask(`模擬国連の${sType()}の原稿を書いてください。\n${ctx()}\n制限時間: ${tTotal}秒(${S.profile.lang==="en"?"約"+Math.round(tTotal/60*130)+"語":"約"+Math.round(tTotal/60*300)+"字"})\n${notes?"参考メモ:\n"+notes+"\n":""}\n大使として一人称で、呼びかけ(議長、各国大使の皆様)から始め、立場→根拠→具体的な提案→協力の呼びかけの順に。原稿本文だけを出力し、見出しや解説は付けない。${langLine()}`,
+    $("#sOut"),$("#sStatus"),{onStart:()=>sBusy(true),onEnd:()=>sBusy(false)}).then(t=>{if(t){$("#sStatus").innerHTML="";const b=document.createElement("button");b.className="btn small";b.textContent="この案を原稿欄に入れる";b.onclick=()=>{$("#sDraft").value=t.trim();S.draft=t.trim();save();renderSMeta()};$("#sStatus").append(b)}});
+};
+$("#sReview").onclick=()=>{
+  const d=$("#sDraft").value.trim();if(!d){$("#sStatus").textContent="原稿を書いてから押してください。";return}
+  ask(`あなたは模擬国連の審査員です。次の${sType()}の原稿を講評してください。\n${ctx()}\n制限時間: ${tTotal}秒\n\n原稿:\n"""${d}"""\n\n## 評価(各5点満点: 担当国らしさ / 論理の明快さ / 具体的提案 / 他国を巻き込む力 / 時間配分)\n## 良い点(2つ)\n## 直すと良くなる点(3つ、具体的な言い換え例つき)\n## 担当国の立場とずれている可能性がある箇所\nの形式で。${langLine()}`,
+    $("#sOut"),$("#sStatus"),{tier:"complex",onStart:()=>sBusy(true),onEnd:()=>sBusy(false)});
+};
+$("#sQA").onclick=()=>{
+  const d=$("#sDraft").value.trim();if(!d){$("#sStatus").textContent="原稿を書いてから押してください。";return}
+  $("#gCountry").value=$("#gCountry").value||"(議場の他国大使)";
+  startNego(`あなたは模擬国連の議場にいる他国の大使です。次のスピーチをした${S.profile.country}大使に、鋭い質問を1つずつ投げてください。相手が答えたら、その答えの弱いところを突く追加質問をするか、次の論点の質問に移ってください。1回の発言は3文以内。${langLine()}\n${ctx()}\n\nスピーチ:\n"""${d}"""`,"質疑応答の練習を始めます。最初の質問をどうぞ。");
+  show("nego");
+};
+$("#sCopy").onclick=async()=>{try{await navigator.clipboard.writeText($("#sDraft").value);$("#sStatus").textContent="コピーしました"}catch(e){$("#sStatus").textContent="コピーできませんでした。原稿を長押しして選択してください"}};
+
+/* ---------- negotiation ---------- */
+let chatSys="",chat=[],gBusy=false;
+const SCENES={unmod:"非着席討議で、相手(ユーザー)があなたにグループ参加を持ちかけてくる",merge:"あなたの国と相手の国はそれぞれ別の決議案グループにいて、統合を交渉する",amend:"あなたの国が出した決議案の文言を、相手が修正してほしいと言ってくる",hostile:"あなたの国はこの議題で相手と立場が対立している。相手はあなたを説得しようとする"};
+const LEVELS={1:"協力的で、筋の通った提案にはすぐ乗る",2:"自国の利益を守りつつ、条件次第で譲歩する",3:"簡単には譲らず、見返りや具体的な文言を要求し、論理の穴を突く"};
+function renderChat(){
+  $("#chat").innerHTML=chat.map(m=>`<div class="msg ${m.role==="user"?"me":"ai"}"><span class="who">${m.role==="user"?esc(S.profile.country||"あなた")+" 大使":esc($("#gCountry").value||"相手")+" 大使"}</span>${esc(m.content)}</div>`).join("");
+  $("#chat").scrollTop=$("#chat").scrollHeight;
+}
+async function aiTurn(){
+  await aiReady;if(!sample){$("#gStatus").textContent="この表示ではAI機能が使えません。";return}
+  gBusy=true;$("#gSend").disabled=true;$("#gStatus").textContent="相手が考えています…";
+  const msgs=[{role:"user",content:chatSys+"\n\n(ここから会話)\n"+(chat[0]?chat[0].content:"始めてください")},...chat.slice(1)];
+  if(msgs[msgs.length-1].role!=="user")msgs.push({role:"user",content:"(続けてください)"});
+  const live={role:"assistant",content:"…"};chat.push(live);renderChat();
+  try{const r=await sample(msgs,{cache:false,onText:({text})=>{live.content=text;renderChat()}});live.content=r.text.trim();$("#gStatus").textContent=""}
+  catch(e){chat.pop();$("#gStatus").textContent=errMsg(e)}
+  gBusy=false;$("#gSend").disabled=false;$("#gDebrief").disabled=chat.length<3;renderChat();
+}
+function startNego(sys,opener){chatSys=sys;chat=[{role:"user",content:opener}];renderChat();aiTurn()}
+$("#gStart").onclick=()=>{
+  const c=$("#gCountry").value.trim();if(!c){$("#gStatus").textContent="相手国を入れてください。";return}
+  if(!S.profile.country){$("#gStatus").textContent="上の担当国を入れてください。";return}
+  startNego(`あなたは模擬国連の${S.profile.body}に参加する${c}の大使です。議題は「${S.profile.topic||"未設定"}」。相手(ユーザー)は${S.profile.country}の大使です。\n場面: ${SCENES[$("#gScene").value]}。\nあなたの交渉スタイル: ${LEVELS[$("#gLevel").value]}。\n${c}の実際の外交方針・利害に沿って振る舞い、キャラクターを崩さないこと。1回の発言は2〜4文、口語の外交的な話し方で。最初は短く挨拶して、相手の用件を聞くか、自国の関心事を一言示してください。${langLine()}`,"(交渉開始)");
+};
+function send(){const t=$("#gInput").value.trim();if(!t||gBusy||!chatSys)return;chat.push({role:"user",content:t});$("#gInput").value="";renderChat();aiTurn()}
+$("#gSend").onclick=send;
+$("#gInput").onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();send()}};
+$("#gDebrief").onclick=async()=>{
+  const log=chat.slice(1).map(m=>(m.role==="user"?S.profile.country+"大使: ":"相手: ")+m.content).join("\n");
+  const box=document.createElement("div");box.className="out";chat.push({role:"assistant",content:"(講評を作成中…)"});renderChat();chat.pop();
+  await aiReady;if(!sample)return;
+  try{const r=await sample(`模擬国連の指導者として、次の交渉の${S.profile.country}大使を講評してください。\n${ctx()}\n\n${log}\n\n## 合意に近づいた点\n## 譲りすぎ・取りこぼし\n## 次に使える一言(具体的なフレーズ3つ)\n${langLine()}`,{cache:false,modelTier:"complex"});
+    chat.push({role:"assistant",content:"【講評】\n"+r.text.replace(/\*\*/g,"").replace(/^#+\s*/gm,"■ ")});renderChat();}
+  catch(e){$("#gStatus").textContent="講評を作れませんでした。もう一度押してください。"}
+};
+
+/* ---------- unmod (continuous) ---------- */
+let uLog=[],uCur="",uMet=new Set(),uAllies=new Set(),uEndAt=0,uTick=null,uBusy=false,uOn=false,uWarned=false;
+const uList=()=>$("#uCountries").value.split(/[、,，\s]+/).map(s=>s.trim()).filter(Boolean);
+const U_LEVEL={1:"各国とも協力的で、筋の通った提案にはわりとすぐ乗る",2:"各国とも自国の利益を守りつつ、条件次第で譲歩する",3:"各国とも簡単には譲らず、見返り・具体的な文言・他国の支持状況を確認してくる。論理の穴は突く"};
+function uRender(){
+  $("#uChat").innerHTML=uLog.map(m=>m.role==="me"?`<div class="msg me"><span class="who">${esc(S.profile.country||"あなた")} 大使 → ${esc(m.to)}</span>${esc(m.text)}</div>`:m.role==="ai"?`<div class="msg ai"><span class="who">${esc(m.country)} 大使${m.ally?' <span class="ally">✓ 合意</span>':""}</span>${esc(m.text)}</div>`:`<div class="msg sys">${m.html||esc(m.text)}</div>`).join("");
+  $("#uChat").scrollTop=$("#uChat").scrollHeight;
+  $("#uMet").textContent=uMet.size;$("#uTurns").textContent=uLog.filter(m=>m.role==="me").length;
+  $("#uAllies").innerHTML=uAllies.size?`合意した国 <b class="ally">${[...uAllies].map(esc).join("、")}</b>`:"";
+}
+function uFillTo(){$("#uTo").innerHTML=`<option value="">(今の相手${uCur?": "+esc(uCur):""})</option>`+uList().map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+function uTranscript(){return uLog.filter(m=>m.role!=="sys").slice(-40).map(m=>m.role==="me"?`${S.profile.country}大使(→${m.to}): ${m.text}`:`${m.country}大使: ${m.text}${m.ally?" [合意]":""}`).join("\n")}
+function uControls(){const on=uOn&&!uBusy;$("#uSend").disabled=!on;$("#uNext").disabled=!on;$("#uMic").disabled=!on&&!micOn;$("#uEnd").disabled=!uOn||uBusy;$("#uStart").disabled=uOn}
+async function uAI(kind,target){
+  await aiReady;if(!sample){$("#uStatus").textContent="この表示ではAI機能が使えません。";return}
+  uBusy=true;uControls();$("#uStatus").textContent=kind==="approach"?"誰かが近づいてきます…":"相手が考えています…";
+  const list=uList(),unmet=list.filter(c=>!uMet.has(c)&&c!==uCur);
+  const task=kind==="approach"
+    ? `次は、${uCur?uCur+"以外の":""}国の大使が${S.profile.country}大使に自分から近づいてきて話しかける場面です。候補: ${(unmet.length?unmet:list.filter(c=>c!==uCur)).join("、")}。その国の実際の利害に合う理由(グループへの勧誘、懸念の表明、条項の提案、対立グループへの引き抜き、情報探りなど)で話しかけてください。`
+    : `直前の${S.profile.country}大使の発言に、${target}の大使として返事をしてください。`;
+  const prompt=`あなたは模擬国連の非着席討議(アンモデ)を再現する進行役で、議場にいる各国の大使を演じます。\n${ctx()}\n議場にいる国: ${list.join("、")}\nユーザーは${S.profile.country}の大使。${$("#uGoal").value?"ユーザーの目標: "+$("#uGoal").value:""}\n各国のふるまい: ${U_LEVEL[$("#uLevel").value]}。各国は実在の外交方針・地域グループ・利害に沿って一貫した態度をとり、前の会話で言ったことと矛盾しないこと。\n\nこれまでの会話:\n${uTranscript()||"(まだなし。アンモデが始まったところ)"}\n\n${task}\n\n出力ルール: 1行目は「国名: 」で始め、続けて発言を書く。発言は2〜4文の話し言葉。国名は候補から1つだけ。ユーザーの提案にこの国がはっきり同意した場合だけ、最後に [合意] と付ける。それ以外の説明・見出しは一切書かない。${langLine()}`;
+  try{
+    const r=await sample(prompt,{cache:false});
+    let t=r.text.trim(),country=kind==="approach"?"":target;
+    const m=t.match(/^[【\[]?([^:：】\]\n]{1,20})[】\]]?\s*[:：]\s*/);
+    if(m){country=m[1].replace(/大使$/,"").trim();t=t.slice(m[0].length)}
+    if(!country)country=(unmet[0]||list[0]);
+    const ally=/\[合意\]|［合意］/.test(t);t=t.replace(/\s*(\[合意\]|［合意］)\s*/g," ").trim();
+    uCur=country;uMet.add(country);if(ally)uAllies.add(country);
+    uLog.push({role:"ai",country,text:t,ally});$("#uStatus").textContent="";uFillTo();
+    if(voiceMode()&&voiceIO.speak)voiceIO.speak(t,Math.max(0,list.indexOf(country)));
+  }catch(e){$("#uStatus").textContent=errMsg(e)}
+  uBusy=false;uControls();uRender();
+}
+function uClockDraw(){
+  if(!uEndAt){$("#uClock").textContent=uOn?"無制限":"--:--";return}
+  const left=Math.max(0,(uEndAt-Date.now())/1000);$("#uClock").textContent=fmt(left);
+  if(left<=60&&!uWarned){uWarned=true;uLog.push({role:"sys",text:"議長: 非着席討議の残り時間は1分です。"});uRender()}
+  if(left<=0)uFinish();
+}
+$("#uStart").onclick=()=>{
+  if(!S.profile.country){$("#uStatus").textContent="上の担当国を入れてください。";return}
+  if(uList().length<2){$("#uStatus").textContent="議場にいる国を2か国以上入れてください。";return}
+  uLog=[{role:"sys",text:`議長: ${$("#uMin").value==="0"?"時間無制限":$("#uMin").value+"分間"}の非着席討議を始めます。`}];uCur="";uMet=new Set();uAllies=new Set();uWarned=false;uOn=true;
+  const min=+$("#uMin").value;uEndAt=min?Date.now()+min*60000:0;clearInterval(uTick);uTick=setInterval(uClockDraw,1000);uClockDraw();
+  uFillTo();uRender();uAI("approach");
+};
+function uSend(){
+  const t=$("#uInput").value.trim();if(!t||uBusy||!uOn)return;
+  const to=$("#uTo").value||uCur||uList()[0];
+  uLog.push({role:"me",to,text:t});$("#uInput").value="";$("#uTo").value="";uRender();uAI("reply",to);
+}
+$("#uSend").onclick=uSend;
+$("#uInput").onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();uSend()}};
+$("#uNext").onclick=()=>{voiceIO.speak&&voiceIO.speak.stop();uAI("approach")};
+
+/* ---------- voice (unmod) ---------- */
+const voiceIO={listen:null,speak:null};
+let micOn=false,micBase="";
+const voiceMode=()=>$("#uVoice").checked;
+function makeWebListen(SR){
+  let rec=null;
+  return{start(h){
+    rec=new SR();rec.lang=S.profile.lang==="en"?"en-US":"ja-JP";rec.interimResults=true;rec.continuous=false;
+    rec.onresult=e=>{let fin="",part="";for(let i=e.resultIndex;i<e.results.length;i++){const r=e.results[i];if(r.isFinal)fin+=r[0].transcript;else part+=r[0].transcript}if(fin)h.final(fin);h.partial(part)};
+    rec.onerror=e=>h.error(e.error);rec.onend=()=>h.end("ended");
+    try{rec.start()}catch(e){h.error("start")}
+  },stop(){try{rec&&rec.stop()}catch(e){}}};
+}
+function makeCapListen(d){
+  let h=null;
+  d.onPartial(({text})=>h&&h.partial(text));
+  d.onFinal(({text})=>h&&h.final(text));
+  d.onState(({state,reason})=>{if(state==="idle"&&h){const x=h;h=null;x.end(reason)}});
+  return{start(handlers){h=handlers;d.start(S.profile.lang==="en"?{language:"en"}:undefined).catch(e=>{const x=h;h=null;x&&x.error(e&&e.code)})},stop(){d.stop().catch(()=>{})}};
+}
+function makeWebSpeak(){
+  const f=(text,idx)=>new Promise(res=>{try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang=S.profile.lang==="en"?"en-US":"ja-JP";u.pitch=[1,0.75,1.25,0.9,1.1,0.85,1.2,1][idx%8];u.rate=1.05;u.onend=u.onerror=()=>res();speechSynthesis.speak(u)}catch(e){res()}});
+  f.stop=()=>{try{speechSynthesis.cancel()}catch(e){}};
+  f.prime=()=>{try{const u=new SpeechSynthesisUtterance("");speechSynthesis.speak(u)}catch(e){}};
+  return f;
+}
+function makeCapSpeak(t){
+  const V=["buttery","airy","glassy","rounded"];
+  const f=(text,idx)=>t.speak(text,{voice:V[idx%4],language:S.profile.lang==="en"?"en":"ja"}).catch(()=>{});
+  f.stop=()=>{t.stop().catch(()=>{})};f.prime=()=>{};
+  return f;
+}
+async function initVoice(){
+  if(STANDALONE){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(SR)voiceIO.listen=makeWebListen(SR);
+    if(window.speechSynthesis&&window.SpeechSynthesisUtterance)voiceIO.speak=makeWebSpeak();
+  }else{
+    try{const d=await claude.use("dictation");if(d)voiceIO.listen=makeCapListen(d)}catch(e){}
+    try{const t=await claude.use("tts");if(t)voiceIO.speak=makeCapSpeak(t)}catch(e){}
+  }
+  const L=!!voiceIO.listen,P=!!voiceIO.speak;
+  $("#uVoiceNote").textContent=L&&P?"この画面ではマイクと読み上げの両方が使えます。":
+    L?"この画面では読み上げが使えません(マイクは使えます)。":
+    P?"この画面ではマイクが使えません(読み上げは使えます)。返事は入力してください。":
+    STANDALONE?"このブラウザは音声に対応していません。Chrome か Safari で開いてください。":"Claudeアプリ内やSafariでは音声が使えません。パソコンのChromeでこのページを開いてください。";
+  $("#uVoice").disabled=!L&&!P;
+}
+function setMic(on){micOn=on;const b=$("#uMic");b.classList.toggle("rec",on);b.textContent=on?"話し終わったら押す":"マイクで話す";uControls()}
+$("#uVoice").onchange=()=>{const on=voiceMode();$("#uMic").hidden=!(on&&voiceIO.listen);if(on&&voiceIO.speak)voiceIO.speak.prime();if(!on&&voiceIO.speak)voiceIO.speak.stop();uControls()};
+$("#uMic").onclick=()=>{
+  if(!voiceIO.listen)return;
+  if(micOn){voiceIO.listen.stop();return}
+  voiceIO.speak&&voiceIO.speak.stop();
+  micBase=$("#uInput").value?$("#uInput").value.trimEnd()+" ":"";
+  setMic(true);$("#uStatus").textContent="聞いています…";
+  voiceIO.listen.start({
+    partial:t=>{$("#uInput").value=micBase+t},
+    final:t=>{micBase=(micBase+t).replace(/^\s+/,"");$("#uInput").value=micBase},
+    error:c=>{setMic(false);$("#uStatus").textContent=c==="not_granted"||c==="not-allowed"?"マイクが許可されていません。ブラウザの設定で許可してください。":c==="no-speech"?"声が聞き取れませんでした。もう一度押して話してください。":"マイクが使えませんでした。もう一度押すか、入力で返事してください。"},
+    end:()=>{setMic(false);$("#uInput").value=micBase;if($("#uStatus").textContent==="聞いています…")$("#uStatus").textContent="";if(voiceMode()&&micBase.trim()&&uOn&&!uBusy)uSend()}
+  });
+};
+$("#uEnd").onclick=()=>uFinish();
+async function uFinish(){
+  if(!uOn)return;uOn=false;clearInterval(uTick);uEndAt=0;$("#uClock").textContent="終了";uControls();
+  uLog.push({role:"sys",text:"議長: 非着席討議を終了します。"});uRender();
+  if(!uLog.some(m=>m.role==="me")){$("#uStatus").textContent="やりとりがなかったので講評はありません。";return}
+  await aiReady;if(!sample)return;
+  $("#uStatus").textContent="講評を作っています…";$("#uEnd").disabled=true;
+  try{
+    const r=await sample(`模擬国連の指導者として、次の非着席討議での${S.profile.country}大使を講評してください。\n${ctx()}\n${$("#uGoal").value?"本人の目標: "+$("#uGoal").value+"\n":""}合意した国: ${[...uAllies].join("、")||"なし"}\n\n${uTranscript()}\n\n## 目標の達成度(10点満点と一言)\n## 国ごとの交渉の評価(1国1行)\n## 良かった動き\n## 改善点(具体的な言い換え例つき)\n## 次のアンモデで使えるフレーズ(3つ)\n${langLine()}`,{cache:false,modelTier:"complex"});
+    uLog.push({role:"sys",html:`<div class="out" style="text-align:left">${md(r.text)}</div>`});$("#uStatus").textContent="";
+  }catch(e){$("#uStatus").textContent=errMsg(e)}
+  uRender();
+}
+
+/* ---------- resolution ---------- */
+function fillPhrases(){const k=$("#cKind").value;$("#cPhrase").innerHTML=(k==="pre"?PRE:OP).map(p=>`<option value="${esc(p[0])}">${esc(p[0])}(${esc(p[1])})</option>`).join("")}
+$("#cKind").onchange=fillPhrases;
+$("#cAdd").onclick=()=>{const t=$("#cText").value.trim().replace(/[,;.、。]+$/,"");if(!t)return;S.clauses.push({id:Date.now(),kind:$("#cKind").value,phrase:$("#cPhrase").value,text:t});$("#cText").value="";save();renderClauses()};
+function ordered(){return [...S.clauses.filter(c=>c.kind==="pre"),...S.clauses.filter(c=>c.kind==="op")]}
+function resoText(){
+  const pre=S.clauses.filter(c=>c.kind==="pre"),op=S.clauses.filter(c=>c.kind==="op");
+  const head=`${S.profile.body==="安全保障理事会"?"The Security Council":"The General Assembly"},\n\n`;
+  const p=pre.map(c=>`${c.phrase} ${c.text},`).join("\n\n");
+  const o=op.map((c,i)=>`${i+1}. ${c.phrase} ${c.text}${i===op.length-1?".":";"}`).join("\n\n");
+  return `${S.profile.topic||"(議題)"}\n\nSponsors: ${S.profile.country||"(担当国)"}\n\n${head}${p}${p&&o?"\n\n":""}${o}`;
+}
+function renderClauses(){
+  const list=ordered();let n=0;
+  $("#clauses").innerHTML=list.length?list.map(c=>`<div class="clause" data-id="${c.id}"><span class="k">${c.kind==="pre"?"前文":"主文"+(++n)}</span><span class="t">${c.kind==="pre"?`<em>${esc(c.phrase)}</em>`:`<u>${esc(c.phrase)}</u>`} ${esc(c.text)}</span><span class="btns"><button class="btn small" data-a="up" aria-label="上へ">↑</button><button class="btn small" data-a="del">削除</button></span></div>`).join(""):`<p class="hint">まだ条項がありません。</p>`;
+  $$("#clauses .clause").forEach(d=>{const id=+d.dataset.id;
+    d.querySelector("[data-a=del]").onclick=()=>{S.clauses=S.clauses.filter(c=>c.id!==id);save();renderClauses()};
+    d.querySelector("[data-a=up]").onclick=()=>{const c=S.clauses.find(x=>x.id===id);const same=S.clauses.filter(x=>x.kind===c.kind);const i=same.indexOf(c);if(i<1)return;const prev=same[i-1];const a=S.clauses.indexOf(c),b=S.clauses.indexOf(prev);[S.clauses[a],S.clauses[b]]=[S.clauses[b],S.clauses[a]];save();renderClauses()};
+  });
+  $("#resoDoc").textContent=resoText();renderStats();
+}
+$("#cCopy").onclick=async()=>{try{await navigator.clipboard.writeText(resoText());$("#cStatus").textContent="コピーしました"}catch(e){$("#cStatus").textContent="コピーできませんでした"}};
+$("#cClear").onclick=()=>{if($("#cClear").dataset.sure){S.clauses=[];save();renderClauses();$("#cClear").textContent="全部消す";delete $("#cClear").dataset.sure}else{$("#cClear").textContent="本当に消す?もう一度押す";$("#cClear").dataset.sure="1";setTimeout(()=>{$("#cClear").textContent="全部消す";delete $("#cClear").dataset.sure},3000)}};
+$("#cReview").onclick=()=>{
+  if(!S.clauses.length){$("#cStatus").textContent="条項を追加してから押してください。";return}
+  ask(`模擬国連の議長団として、次の決議案をチェックしてください。\n${ctx()}\n\n${resoText()}\n\n## 体裁の問題(書き出しの語、句読点、前文/主文の使い分け)\n## 権限の問題(${S.profile.body}が決められないことを書いていないか)\n## 担当国の国益との整合性\n## 賛成を得にくい国・ブロックと、その国が乗れる言い換え案\n## 追加すると良い主文の案(2つ、英文で)\n${langLine()}`,
+    $("#cOut"),$("#cStatus"),{tier:"complex",onStart:()=>$("#cReview").disabled=true,onEnd:()=>$("#cReview").disabled=false});
+};
+
+/* ---------- quiz ---------- */
+let qMode="quiz",qOrder=[],qi=0,qAnswered=false,flip=false;
+function allQ(){return [...QUIZ,...(S.extraQuiz||[])]}
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function renderQMode(){$("#qMode").innerHTML=[["quiz","4択クイズ"],["cards","用語カード"]].map(m=>`<button class="chip ${m[0]===qMode?"on":""}" data-m="${m[0]}">${m[1]}</button>`).join("");$$("#qMode .chip").forEach(c=>c.onclick=()=>{qMode=c.dataset.m;qi=0;flip=false;qOrder=shuffle(qMode==="quiz"?allQ().map((_,i)=>i):TERMS.map((_,i)=>i));renderQMode();renderQuiz()})}
+function renderQuiz(){
+  const box=$("#quizBox");
+  if(qMode==="cards"){
+    const t=TERMS[qOrder[qi%qOrder.length]];
+    box.innerHTML=`<p class="status">${qi%qOrder.length+1} / ${TERMS.length}(タップで裏返す)</p><div class="flash" id="fc" tabindex="0" role="button">${flip?`<div><b>${esc(t[1])}</b><p>${esc(t[2])}</p></div>`:`<b>${esc(t[0])}</b>`}</div><div class="btns"><button class="btn primary" id="fcNext">次へ</button></div>`;
+    $("#fc").onclick=$("#fc").onkeydown=e=>{if(e.type==="keydown"&&e.key!=="Enter"&&e.key!==" ")return;flip=!flip;renderQuiz()};
+    $("#fcNext").onclick=()=>{qi++;flip=false;renderQuiz()};return;
+  }
+  const Q=allQ();if(qi>=qOrder.length){box.innerHTML=`<p class="q">一周しました</p><p>通算 ${S.quiz.correct} / ${S.quiz.answered} 問正解</p><div class="btns"><button class="btn primary" id="qAgain">もう一周</button><button class="btn" id="qResetStats">成績をリセット</button></div>`;$("#qAgain").onclick=()=>{qi=0;qOrder=shuffle(Q.map((_,i)=>i));renderQuiz()};$("#qResetStats").onclick=()=>{S.quiz={answered:0,correct:0};save();renderStats();renderQuiz()};return}
+  const it=Q[qOrder[qi]];qAnswered=false;
+  box.innerHTML=`<p class="status">${qi+1} / ${qOrder.length}${qOrder[qi]>=QUIZ.length?" ・AI作成問題":""}</p><p class="q">${esc(it.q)}</p><div class="opts">${it.o.map((o,i)=>`<button class="opt" data-i="${i}">${esc(o)}</button>`).join("")}</div><div id="qExp"></div>`;
+  $$("#quizBox .opt").forEach(b=>b.onclick=()=>{
+    if(qAnswered)return;qAnswered=true;const i=+b.dataset.i,ok=i===it.a;
+    S.quiz.answered++;if(ok)S.quiz.correct++;save();renderStats();
+    $$("#quizBox .opt").forEach(x=>{if(+x.dataset.i===it.a)x.classList.add("right")});if(!ok)b.classList.add("wrong");
+    $("#qExp").innerHTML=`<p><span class="pill ${ok?"good":"bad"}">${ok?"正解":"不正解"}</span> ${esc(it.e)}</p><div class="btns"><button class="btn primary" id="qNext">次の問題</button></div>`;
+    $("#qNext").onclick=()=>{qi++;renderQuiz()};
+  });
+}
+$("#qGen").onclick=async()=>{
+  await aiReady;const st=$("#qStatus");if(!sample){st.textContent="この表示ではAI機能が使えません。";return}
+  $("#qGen").disabled=true;st.textContent="問題を作っています…";
+  try{
+    const v=await sample.json(`模擬国連(日本の高校生大会)の議事手続き・決議案・国連の仕組みについて、4択問題を5問作ってください。テーマ: ${$("#qTopic").value||"全般"}。大会ごとに異なるルールは一般的な扱いを答えにし、解説で「大会により異なる」と書く。\nJSONのみで返す: {"items":[{"q":"問題文","o":["選択肢1","選択肢2","選択肢3","選択肢4"],"a":正解の添字0-3,"e":"解説"}]}`,{cache:false});
+    const items=(v&&v.items||[]).filter(x=>x&&x.q&&Array.isArray(x.o)&&x.o.length===4&&x.a>=0&&x.a<4);
+    if(!items.length)throw 0;
+    S.extraQuiz=[...(S.extraQuiz||[]),...items].slice(-40);save();
+    qMode="quiz";const base=QUIZ.length+S.extraQuiz.length-items.length;qOrder=items.map((_,i)=>base+i);qi=0;renderQMode();renderQuiz();
+    st.textContent=`${items.length}問追加しました。上で解けます`;
+  }catch(e){st.textContent=e&&e.code?errMsg(e):"問題を作れませんでした。もう一度押してください。"}
+  $("#qGen").disabled=false;
+};
+
+/* ---------- glossary ---------- */
+function tbl(id,head,rows){$(id).innerHTML=`<thead><tr>${head.map(h=>`<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td>${i===0?`<b>${esc(c)}</b>`:esc(c)}</td>`).join("")}</tr>`).join("")}</tbody>`}
+
+/* ---------- init ---------- */
+function renderAll(){bindProfile();renderHome();renderNotes();$("#sDraft").value=S.draft||"";tTotal=S.timerSec||90;renderPresets();resetT();renderSTypes();renderSMeta();fillPhrases();renderClauses();renderRModes();qOrder=shuffle(allQ().map((_,i)=>i));qi=0;renderQMode();renderQuiz();}
+tbl("#tPre",["English","日本語","使いどころ"],PRE);
+tbl("#tOp",["English","日本語","使いどころ"],OP);
+tbl("#tTerms",["用語","英語","意味"],TERMS);
+renderAll();fromHash();initVoice();
+setStatus(local?"この端末に保存されたデータを表示中":"この端末に保存します");
+
+if(STANDALONE){
+  $("#codeRow").hidden=false;$("#pCode").value=getCode();
+  $("#pCode").oninput=()=>{try{localStorage.setItem("mun-access-code",$("#pCode").value.trim())}catch(e){}};
+  setStatus("入力した内容はこの端末のブラウザに保存されます");
+}else (async()=>{
+  try{
+    const [db,user]=await Promise.all([claude.use("db"),claude.use("user")]);
+    if(!db||!user){setStatus(local?"この端末のブラウザに保存しています":"この端末のブラウザに保存します");return}
+    const uid=await user.id();if(!uid){setStatus("ログインしていないため、この端末のブラウザにだけ保存します");return}
+    docRef=db.doc("data/users/"+uid+"/mun");
+    const timer=setTimeout(()=>setStatus("保存先につながりません。この端末には保存しています"),10000);
+    const snap=await docRef.get();clearTimeout(timer);
+    if(snap.exists){merge(snap.data());lsSave();renderAll();setStatus("保存済み(どの端末からでも続きができます)")}
+    else{setStatus("ここで入力した内容は自動で保存されます");if(local){dirty=true;flush()}}
+  }catch(e){setStatus("この端末のブラウザに保存しています")}
+})();
+})();
+</script>
+</body>
+</html>
