@@ -282,6 +282,21 @@ th{font-size:12px;color:var(--muted);font-weight:500}
       <div class="compose"><textarea id="uInput" placeholder="返事を入力(Ctrl+Enterで送信)"></textarea><div style="display:grid;gap:6px"><button class="btn mic" id="uMic" hidden disabled>マイクで話す</button><button class="btn primary" id="uSend" disabled>送信</button></div></div>
       <p class="status" id="uStatus"></p>
     </div>
+    <div class="card">
+      <h2>音声で即答練習(AIなし)</h2>
+      <p class="hint">議題「AI時代の持続可能な開発」で、各国の大使がアンモデで話しかけてくるセリフを読み上げます。1か国につき「声をかけられる→答える→突っ込まれる→答える」の2往復です。AIを使わないので、相手の返しは決まった台本です。</p>
+      <div class="row" style="display:flex;flex-wrap:wrap;gap:10px;align-items:end">
+        <div class="field" style="flex:0 1 150px"><label for="dSec">1回の答えの目安</label><select id="dSec"><option value="20">20秒</option><option value="30" selected>30秒</option><option value="45">45秒</option><option value="60">60秒</option></select></div>
+        <div class="field" style="flex:0 1 150px"><label for="dNum">回る国の数</label><select id="dNum"><option value="3">3か国</option><option value="5" selected>5か国</option><option value="8">8か国</option><option value="15">全部</option></select></div>
+      </div>
+      <p class="status" id="dVoiceNote"></p>
+      <div class="btns"><button class="btn primary" id="dStart">練習を始める</button><button class="btn" id="dEnd" disabled>終わる</button></div>
+      <div class="meta"><span>答えの時間 <b id="dClock">--</b></span><span>進み具合 <b id="dProg">0/0</b></span></div>
+      <div class="chat" id="dChat" style="max-height:420px"></div>
+      <div class="compose"><textarea id="dInput" placeholder="マイクが使えないときはここに答えを入力"></textarea><div style="display:grid;gap:6px"><button class="btn mic" id="dMic" disabled>答える(マイク)</button><button class="btn primary" id="dSend" disabled>送信</button></div></div>
+      <div class="btns"><button class="btn small" id="dRepeat" disabled>もう一度聞く</button><button class="btn small" id="dSkip" disabled>この国を飛ばす</button></div>
+      <p class="status" id="dStatus"></p>
+    </div>
   </section>
 
   <!-- NEGOTIATION -->
@@ -715,6 +730,74 @@ $("#uSend").onclick=uSend;
 $("#uInput").onkeydown=e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();uSend()}};
 $("#uNext").onclick=()=>{voiceIO.speak&&voiceIO.speak.stop();uAI("approach")};
 
+/* ---------- voice drill (no AI) ---------- */
+const DRILL=[
+{c:"アメリカ",a:"こんにちは。我が国は、AIの開発は民間のイノベーションが原動力だと考えています。国連で厳しい規制の枠組みを作ることには慎重です。貴国は、規制と投資の呼び込み、どちらを優先しますか。",f:["では、規制を最小限にした場合、途上国の人々をAIのリスクからどう守るのですか。","その提案、民間企業は本当に乗ってくると思いますか。"]},
+{c:"中国",a:"大使、少しよろしいですか。AIの恩恵が一部の先進国に集中しないよう、技術移転と能力構築を決議の中心に置くべきだと考えています。貴国は、各国の主権を尊重したAIガバナンスに賛成していただけますか。",f:["技術移転を義務にするか、自主的なものにするか、どちらが良いとお考えですか。","データを国外に出す仕組みは、我が国としては受け入れにくいのですが。"]},
+{c:"インド",a:"お話ししたいことがあります。我が国はデジタル公共インフラで多くの人を金融や行政サービスにつなげてきました。この経験を途上国と共有する枠組みを提案したいのですが、貴国は関心がありますか。",f:["その枠組みの資金は、誰が負担すべきだとお考えですか。","言語の多様性への対応は、どう入れたら良いでしょうか。"]},
+{c:"フランス",a:"こんにちは。EUはリスクに応じた規制を進めてきました。持続可能な開発のためにも、人権と透明性を守るルールが必要です。貴国は、高リスクなAIへの国際的な基準づくりに賛成ですか。",f:["基準を作ると、途上国の負担が大きくなるという声もありますが、どう答えますか。","具体的に、どんなAIを高リスクとみなすべきでしょうか。"]},
+{c:"ブラジル",a:"大使、一点気になっていることがあります。AIのデータセンターは大量の電力と水を使います。持続可能な開発と言うなら、AIそのものの環境負荷も議論すべきです。貴国はこの点をどうお考えですか。",f:["環境負荷の報告を企業に義務づける条項を入れたいのですが、乗っていただけますか。","それでも、途上国がAIを使う権利を制限してはいけませんよね。"]},
+{c:"ナイジェリア",a:"こんにちは。アフリカでは若い世代が急増していますが、AIに必要な電力、通信、人材がまだ足りません。資金と人材育成の支援を決議に明記したいのですが、貴国は共同提案国になっていただけますか。",f:["支援を受ける側の国が主体的に決められる仕組みも必要だと思いますが、いかがですか。","先進国が乗ってこなかった場合、どうしますか。"]},
+{c:"日本",a:"お疲れさまです。我が国は、安全・安心で信頼できるAIを広げることが大切だと考えています。G7で始めた広島AIプロセスの考え方を、国連の議論にもつなげたいのですが、貴国のお考えを聞かせてください。",f:["先進国中心の枠組みだという批判には、どう応えたら良いと思いますか。","人材育成の部分で、一緒に条項を書けませんか。"]},
+{c:"インドネシア",a:"こんにちは。ASEANの国として、AIを農業や防災に生かしたいと考えています。地域ごとの協力を決議に入れる案はどう思われますか。",f:["地域協力と国連全体の枠組み、どちらを主にすべきでしょうか。","島が多い国では通信網が課題です。何か良い案はありますか。"]},
+{c:"ツバル",a:"大使、少しだけお時間をください。我々小さな島国にとって、気候変動は生き残りの問題です。AIを気候予測や災害対応に使うための支援を、優先してほしいのです。貴国は支持していただけますか。",f:["小さな国の声が決議に反映されるよう、どう協力していただけますか。","支援の優先順位を決める基準は、何にすべきでしょうか。"]},
+{c:"ドイツ",a:"こんにちは。AIで仕事が変わる中、働く人のリスキリングが欠かせません。持続可能な開発の目標にも、AI時代の教育と職業訓練を入れるべきです。貴国はどう考えますか。",f:["職業訓練の費用は、国と企業のどちらが持つべきでしょうか。","その条項に、ほかに賛成してくれそうな国はありますか。"]},
+{c:"南アフリカ",a:"大使、お話しできますか。デジタル格差を放置したままでは、AIは格差をさらに広げてしまいます。グローバル・サウスの声をまとめたグループを作ろうとしていますが、参加しませんか。",f:["グループに入る条件として、どの条項を必ず入れたいですか。","先進国グループと統合交渉をする場合、どこまで譲れますか。"]},
+{c:"韓国",a:"こんにちは。我が国は半導体とデジタル技術に強みがあります。AIの開発と環境への配慮を両立させるため、省エネ技術の共有を提案したいと考えています。貴国は関心がありますか。",f:["技術の共有と知的財産の保護は、どう両立させますか。","その提案、決議のどの論点に入れるのが良いと思いますか。"]},
+{c:"ケニア",a:"こんにちは。我が国では、AIを使った天気予報や病気の早期発見で、小さな農家を支える取り組みが始まっています。現場の成功例を広げる仕組みを決議に入れたいのですが、どう思われますか。",f:["その仕組みを、誰が運営するのが良いでしょうか。","成果をどうやって測るべきだと思いますか。"]},
+{c:"サウジアラビア",a:"大使、よろしいですか。我が国は経済の多角化のため、AIへ大きな投資をしています。投資を妨げない形で、持続可能性の目標を入れることはできると考えています。貴国の立場はどうですか。",f:["企業への報告義務が重すぎると、投資が逃げてしまいます。その点はどうお考えですか。","自主的な取り組みを促す表現では、だめでしょうか。"]},
+{c:"カナダ",a:"こんにちは。AIのルール作りには、先住民族や少数言語の話者など、取り残されがちな人々の参加が欠かせないと考えています。貴国は、包摂性をどう決議に反映させたいですか。",f:["具体的な条文にすると、どんな表現になりますか。","それを各国にどう実施させるかも、考えておられますか。"]}];
+let dOn=false,dQ=[],dI=0,dStep=0,dLine="",dShown=0,dTick=null,dStartAt=0,dLog=[],dMicOn=false,dBase="";
+function dRender(){
+  $("#dChat").innerHTML=dLog.map(m=>m.role==="me"?`<div class="msg me"><span class="who">あなた(${m.sec}秒)</span>${esc(m.text)}</div>`:m.role==="ai"?`<div class="msg ai"><span class="who">${esc(m.c)} 大使</span>${esc(m.text)}</div>`:`<div class="msg sys">${m.html||esc(m.text)}</div>`).join("");
+  $("#dChat").scrollTop=$("#dChat").scrollHeight;$("#dProg").textContent=`${Math.min(dI+1,dQ.length)}/${dQ.length}`;
+}
+function dCtl(){const on=dOn&&!!dLine;$("#dMic").disabled=!(on&&voiceIO.listen)&&!dMicOn;$("#dSend").disabled=!on;$("#dRepeat").disabled=!on;$("#dSkip").disabled=!dOn;$("#dEnd").disabled=!dOn;$("#dStart").disabled=dOn}
+function dSay(){const it=dQ[dI];if(voiceIO.speak)voiceIO.speak(dLine,DRILL.indexOf(it));}
+function dAsk(){
+  if(dI>=dQ.length){dFinish();return}
+  const it=dQ[dI];dLine=dStep===0?it.a:it.f[Math.floor(Math.random()*it.f.length)];
+  dLog.push({role:"ai",c:it.c,text:dLine});dRender();dSay();
+  dStartAt=Date.now();clearInterval(dTick);dTick=setInterval(dClockDraw,250);dClockDraw();dCtl();
+}
+function dClockDraw(){const lim=+$("#dSec").value,el=(Date.now()-dStartAt)/1000,c=$("#dClock");c.textContent=dLine?`${Math.floor(el)}秒 / ${lim}秒`:"--";c.style.color=el>lim?"var(--bad)":el>lim-10?"var(--warn)":""}
+function dAnswer(text){
+  text=text.trim();if(!text||!dLine)return;
+  const sec=Math.round((Date.now()-dStartAt)/1000);dLog.push({role:"me",text,sec,over:sec>+$("#dSec").value});dLine="";clearInterval(dTick);$("#dInput").value="";
+  voiceIO.speak&&voiceIO.speak.stop();
+  if(dStep===0){dStep=1}else{dStep=0;dI++}
+  dCtl();setTimeout(dAsk,600);
+}
+$("#dStart").onclick=()=>{
+  const n=+$("#dNum").value;dQ=shuffle(DRILL).slice(0,n);dI=0;dStep=0;dLog=[{role:"sys",text:"議長: これより非着席討議に入ります。"}];dOn=true;
+  if(voiceIO.speak)voiceIO.speak.prime();dAsk();
+};
+$("#dSend").onclick=()=>dAnswer($("#dInput").value);
+$("#dRepeat").onclick=()=>dSay();
+$("#dSkip").onclick=()=>{voiceIO.speak&&voiceIO.speak.stop();if(dMicOn)voiceIO.listen.stop();dLine="";dStep=0;dI++;dAsk()};
+$("#dEnd").onclick=()=>dFinish();
+$("#dMic").onclick=()=>{
+  if(!voiceIO.listen)return;
+  if(dMicOn){voiceIO.listen.stop();return}
+  voiceIO.speak&&voiceIO.speak.stop();
+  dBase=$("#dInput").value?$("#dInput").value.trimEnd()+" ":"";
+  dMicOn=true;$("#dMic").classList.add("rec");$("#dMic").textContent="話し終わったら押す";$("#dStatus").textContent="聞いています…";
+  voiceIO.listen.start({
+    partial:t=>{$("#dInput").value=dBase+t},
+    final:t=>{dBase=(dBase+t).replace(/^\s+/,"");$("#dInput").value=dBase},
+    error:c=>{dMicDone();$("#dStatus").textContent=c==="not_granted"||c==="not-allowed"?"マイクが許可されていません。ブラウザの設定で許可してください。":c==="no-speech"?"声が聞き取れませんでした。もう一度押して話してください。":"マイクが使えませんでした。入力で答えてください。"},
+    end:()=>{dMicDone();$("#dInput").value=dBase;if($("#dStatus").textContent==="聞いています…")$("#dStatus").textContent="";if(dBase.trim())dAnswer(dBase)}
+  });
+};
+function dMicDone(){dMicOn=false;$("#dMic").classList.remove("rec");$("#dMic").textContent="答える(マイク)";dCtl()}
+function dFinish(){
+  if(!dOn)return;dOn=false;dLine="";clearInterval(dTick);voiceIO.speak&&voiceIO.speak.stop();$("#dClock").textContent="--";
+  const mine=dLog.filter(m=>m.role==="me"),lim=+$("#dSec").value;
+  const avg=mine.length?Math.round(mine.reduce((a,m)=>a+m.sec,0)/mine.length):0,over=mine.filter(m=>m.over).length;
+  dLog.push({role:"sys",html:`<div class="out" style="text-align:left"><h4>ふりかえり</h4><p>答えた回数 <b>${mine.length}</b>回 ・ 平均 <b>${avg}</b>秒 ・ ${lim}秒オーバー <b>${over}</b>回</p><p>自分の答えを見返して、次の3つができていたか確かめてみてください。</p><ul><li>最初の一文で自国の立場をはっきり言えた</li><li>相手の国の利益や心配に触れた</li><li>「では一緒に〇〇の条項を書きませんか」のように、具体的な次の一手を出せた</li></ul></div>`});
+  dRender();dCtl();$("#dStatus").textContent="";
+}
+
 /* ---------- voice (unmod) ---------- */
 const voiceIO={listen:null,speak:null};
 let micOn=false,micBase="";
@@ -762,6 +845,8 @@ async function initVoice(){
     P?"この画面ではマイクが使えません(読み上げは使えます)。返事は入力してください。":
     STANDALONE?"このブラウザは音声に対応していません。Chrome か Safari で開いてください。":"Claudeアプリ内やSafariでは音声が使えません。パソコンのChromeでこのページを開いてください。";
   $("#uVoice").disabled=!L&&!P;
+  $("#dVoiceNote").textContent=L&&P?"マイクと読み上げが使えます。":$("#uVoiceNote").textContent;
+  if(!P)$("#dRepeat").hidden=true;
 }
 function setMic(on){micOn=on;const b=$("#uMic");b.classList.toggle("rec",on);b.textContent=on?"話し終わったら押す":"マイクで話す";uControls()}
 $("#uVoice").onchange=()=>{const on=voiceMode();$("#uMic").hidden=!(on&&voiceIO.listen);if(on&&voiceIO.speak)voiceIO.speak.prime();if(!on&&voiceIO.speak)voiceIO.speak.stop();uControls()};
